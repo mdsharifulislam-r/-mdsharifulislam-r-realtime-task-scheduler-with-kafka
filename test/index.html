@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Task Scheduler</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center p-6">
+  <div class="w-full max-w-6xl">
+    <h1 class="text-3xl font-bold text-center mb-6">🗓️ Real-time Task Scheduler</h1>
+
+    <!-- Form -->
+    <form id="taskForm" class="flex gap-4 mb-6">
+      <input
+        type="text"
+        id="taskInput"
+        placeholder="Enter a task..."
+        class="flex-1 px-4 py-2 border rounded-lg"
+        required
+      />
+      <button
+        type="submit"
+        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+      >Add Task</button>
+    </form>
+
+    <!-- Columns -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <!-- Pending -->
+      <div class="bg-white rounded-lg shadow p-4">
+        <h2 class="text-xl font-semibold mb-4 text-yellow-600">🕐 Pending</h2>
+        <ul id="pendingList" class="space-y-2 min-h-[200px]"></ul>
+      </div>
+
+      <!-- In Progress -->
+      <div class="bg-white rounded-lg shadow p-4">
+        <h2 class="text-xl font-semibold mb-4 text-blue-600">⚙️ In Progress</h2>
+        <ul id="inProgressList" class="space-y-2 min-h-[200px]"></ul>
+      </div>
+
+      <!-- Complete -->
+      <div class="bg-white rounded-lg shadow p-4">
+        <h2 class="text-xl font-semibold mb-4 text-green-600">✅ Complete</h2>
+        <ul id="completeList" class="space-y-2 min-h-[200px]"></ul>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // DEMO data
+    const demoTasks = [
+    ];
+
+    const taskForm = document.getElementById('taskForm');
+    const taskInput = document.getElementById('taskInput');
+    const pendingList = document.getElementById('pendingList');
+    const inProgressList = document.getElementById('inProgressList');
+    const completeList = document.getElementById('completeList');
+
+    function renderTask(task) {
+      const li = document.createElement('li');
+      li.className = "bg-gray-100 p-3 rounded flex justify-between items-center";
+      li.innerHTML = `
+        <span>${task.title}</span>
+        <div class="space-x-2">
+          ${task.status !== 'in-progress' ? `<button onclick="updateStatus('${task.id}', 'in-progress')" class="text-blue-500 hover:underline text-sm">Start</button>` : ''}
+          ${task.status !== 'complete' ? `<button onclick="updateStatus('${task.id}', 'complete')" class="text-green-500 hover:underline text-sm">Done</button>` : ''}
+          <button onclick="deleteTask('${task.id}')" class="text-red-500 hover:underline text-sm">Delete</button>
+        </div>
+      `;
+      return li;
+    }
+
+    function loadTasks(tasks) {
+      pendingList.innerHTML = '';
+      inProgressList.innerHTML = '';
+      completeList.innerHTML = '';
+      console.log(tasks);
+      tasks.forEach(task => {
+        const li = renderTask(task);
+        if (task.status === 'pending') pendingList.appendChild(li);
+        else if (task.status === 'in-progress') inProgressList.appendChild(li);
+        else if (task.status === 'complete') completeList.appendChild(li);
+      });
+    }
+
+    fetch('http://10.10.7.6:6008/api/v1/task')
+    .then(response => response.json())
+    .then(tasks => {
+      loadTasks(tasks?.data);
+    });
+
+    // Socket Setup
+    const socket = io('http://10.10.7.6:6008');
+
+
+    taskForm.addEventListener('submit',async (e) => {
+      e.preventDefault();
+      const title = taskInput.value.trim();
+      if (title) {
+       await fetch('http://10.10.7.6:6008/api/v1/task', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ task:title })
+      })
+        taskInput.value = '';
+      }
+    });
+
+    async function updateStatus(id, newStatus) {
+      console.log(id, newStatus);
+      await fetch(`http://10.10.7.6:6008/api/v1/task/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status: newStatus })
+      })
+    }
+
+   async function deleteTask(id) {
+      fetch(`http://10.10.7.6:6008/api/v1/task/${id}`, {
+        method:"DELETE"
+      })
+    }
+
+    socket.on('loadTasks', loadTasks);
+    socket.on('updateTasks', loadTasks);
+  </script>
+</body>
+</html>
